@@ -4,5 +4,11 @@
   "devCommand": "next dev",
   "installCommand": "npm install",
   "regions": ["iad1"],
-  "routes": [{ "handle": "filesystem" }, { "src": "/(.*)", "dest": "/" }]
+  "routes": [{ "handle": "filesystem" }, { "src": "/(.*)", "dest": "/" }],
+  "functions": {
+    "api/analyze": {
+      "memory": 1024,
+      "maxDuration": 60
+    }
+  }
 }

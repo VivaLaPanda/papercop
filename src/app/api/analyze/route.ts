@@ -1,11 +1,18 @@
 import { NextResponse } from "next/server";
 import Anthropic from "@anthropic-ai/sdk";
 
+// Set longer timeout for Anthropic API requests
+const ANTHROPIC_TIMEOUT_MS = 50000; // 50 seconds
+
 // Initialize the Anthropic client
 // We get the API key from environment variables for security
 const anthropic = new Anthropic({
   apiKey: process.env.ANTHROPIC_API_KEY || "",
+  timeout: ANTHROPIC_TIMEOUT_MS,
 });
+
+// This tells Next.js this route can take longer than the default timeout
+export const maxDuration = 60; // Maximum duration in seconds for the Edge function
 
 export async function POST(request: Request) {
   try {
@@ -96,6 +103,18 @@ Do an expert-level peer review on this. Make sure to be harsh but fair. After yo
     });
   } catch (error) {
     console.error("Error analyzing PDF:", error);
+
+    // Provide more specific error for timeout cases
+    if (error instanceof Error && error.message.includes("timeout")) {
+      return NextResponse.json(
+        {
+          error:
+            "Analysis timed out. The PDF may be too large or complex to process within the allocated time.",
+        },
+        { status: 504 },
+      );
+    }
+
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "An unknown error occurred" },
       { status: 500 },
