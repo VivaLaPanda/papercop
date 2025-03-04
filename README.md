@@ -1,6 +1,6 @@
-# CiteCop
+# PaperCop
 
-CiteCop is a tiny demonstration of using claude 3.7 to predict whether a paper should be
+PaperCop is a tiny demonstration of using claude 3.7 to predict whether a paper should be
 retracted based on the fulltext PDF of the paper.
 
 # Design/Architecture
