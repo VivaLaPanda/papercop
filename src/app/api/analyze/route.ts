@@ -37,7 +37,7 @@ Do an expert-level peer review on this. Make sure to be harsh but fair. After yo
 
     // Make the API request to Claude
     const message = await anthropic.messages.create({
-      model: "claude-3-7-sonnet-20240219", // Updated to use Claude 3.7 Sonnet like the Python script
+      model: "claude-3-7-sonnet-20250219", // Corrected model ID with 2025 year
       max_tokens: 6000,
       thinking: { type: "enabled", budget_tokens: 2000 },
       system:
