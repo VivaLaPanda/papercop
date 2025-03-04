@@ -6,7 +6,7 @@
   "regions": ["iad1"],
   "routes": [{ "handle": "filesystem" }, { "src": "/(.*)", "dest": "/" }],
   "functions": {
-    "api/analyze": {
+    "src/app/api/analyze/route.ts": {
       "memory": 1024,
       "maxDuration": 60
     }
