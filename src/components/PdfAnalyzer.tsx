@@ -109,7 +109,7 @@ export function PdfAnalyzer() {
           {isAnalyzing && (
             <div className="mt-6 space-y-2">
               <p className="text-sm text-muted-foreground text-center">
-                Analyzing paper with Claude 3.7...
+                Analyzing paper with Claude 3.7 Sonnet...
               </p>
               <Progress value={50} className="h-2" />
             </div>

@@ -21,33 +21,18 @@ export async function POST(request: Request) {
       return NextResponse.json({ error: "File name and content are required" }, { status: 400 });
     }
 
-    // The prompt for Claude
-    const prompt = `
-      You are CiteCop, an AI assistant specializing in identifying academic papers that should be retracted.
-      
-      Please analyze the following academic paper and determine if it should be retracted.
-      
-      For your analysis, consider factors such as:
-      1. Evidence of data fabrication or falsification
-      2. Plagiarism or self-plagiarism
-      3. Methodological errors that invalidate the results
-      4. Ethical violations in research conduct
-      5. Conflicts of interest that weren't disclosed
-      6. Image manipulation or duplication
-      7. Statistical errors or p-hacking
-      
-      Format your output as XML with the following structure:
-      <result>
-        <percentage>A number from 0-100 representing the likelihood this paper should be retracted</percentage>
-        <summary>A concise summary of your analysis (2-3 sentences)</summary>
-        <explanation>A detailed explanation of your reasoning</explanation>
-      </result>
-    `;
+    // The prompt for Claude, matching the Python script style
+    const prompt = `Paper:
+
+[PDF Content will be analyzed automatically]
+
+Do an expert-level peer review on this. Make sure to be harsh but fair. After your review give a probability that the paper will be retracted. Put the probability as a percentage in double brackets.`;
 
     // Make the API request to Claude
     const message = await anthropic.messages.create({
-      model: "claude-3-5-sonnet-20240620", // Using Sonnet to save costs; adjust based on needs
-      max_tokens: 4000,
+      model: "claude-3-7-sonnet-20240219", // Updated to use Claude 3.7 Sonnet like the Python script
+      max_tokens: 6000,
+      thinking: { type: "enabled", budget_tokens: 2000 },
       system:
         "You are CiteCop, an AI assistant specializing in identifying papers that should be retracted.",
       messages: [
@@ -71,37 +56,42 @@ export async function POST(request: Request) {
       ],
     });
 
-    // Parse the XML response from Claude
+    // Get the response text
     const responseText =
       typeof message.content[0] === "object" && "text" in message.content[0]
         ? (message.content[0].text as string)
         : "";
 
-    // Extract data using indexOf and substring for better compatibility
-    const getTagContent = (text: string, tag: string) => {
-      const startTag = `<${tag}>`;
-      const endTag = `</${tag}>`;
-      const startIndex = text.indexOf(startTag) + startTag.length;
-      const endIndex = text.indexOf(endTag);
-      if (startIndex === -1 || endIndex === -1) return null;
-      return text.substring(startIndex, endIndex);
+    // Extract percentage using regex, matching the Python script's approach
+    const extractPercentage = (text: string): number => {
+      const match = text.match(/\[\[(\d+(?:\.\d+)?)%?\]\]/);
+      if (match) {
+        try {
+          return parseFloat(match[1]);
+        } catch {
+          return 0;
+        }
+      }
+      return 0;
     };
 
-    const percentageStr = getTagContent(responseText, "percentage");
-    const summary = getTagContent(responseText, "summary");
-    const explanation = getTagContent(responseText, "explanation");
+    const retractedPercentage = extractPercentage(responseText);
 
-    if (!percentageStr || !summary || !explanation) {
-      throw new Error("Failed to parse Claude response");
-    }
+    // For the analysis, get everything before the double bracketed percentage
+    const lastIndex = responseText.lastIndexOf("[[");
+    const analysis =
+      lastIndex > 0
+        ? responseText.substring(responseText.lastIndexOf("\n\n", lastIndex) + 2, lastIndex).trim()
+        : "Analysis not found";
 
-    const retractedPercentage = parseInt(percentageStr, 10);
+    // Chain of thought is the entire response
+    const chainOfThought = responseText;
 
     // Return the parsed analysis
     return NextResponse.json({
       retractedPercentage,
-      analysis: summary,
-      chainOfThought: explanation,
+      analysis,
+      chainOfThought,
       fileName,
     });
   } catch (error) {
