@@ -1,6 +1,7 @@
 "use client";
 
 import React, { useState } from "react";
+import ReactMarkdown from "react-markdown";
 import { FileInput } from "@/components/ui/file-input";
 import { Button } from "@/components/ui/button";
 import { Card, CardContent, CardFooter, CardHeader, CardTitle } from "@/components/ui/card";
@@ -89,7 +90,7 @@ export function PdfAnalyzer() {
     <div className="max-w-3xl mx-auto p-6">
       <Card className="mb-6">
         <CardHeader>
-          <CardTitle className="text-2xl font-bold">CiteCop - Paper Retraction Detector</CardTitle>
+          <CardTitle className="text-2xl font-bold">PaperCop - Paper Retraction Detector</CardTitle>
         </CardHeader>
         <CardContent>
           <FileInput onFileSelect={handleFileSelect} />
@@ -137,11 +138,7 @@ export function PdfAnalyzer() {
           <CardContent>
             <div className="text-center mb-6">
               <div className="text-4xl font-bold mb-2">{result.retractedPercentage}%</div>
-              <p className="text-muted-foreground">
-                {result.retractedPercentage > 50
-                  ? "Likelihood this paper should be retracted"
-                  : "Confidence this paper is legitimate"}
-              </p>
+              <p className="text-muted-foreground">Likelihood this paper should be retracted</p>
             </div>
             <div className="mt-4 p-4 bg-muted rounded-md">
               <p className="text-sm">{result.analysis}</p>
@@ -156,7 +153,9 @@ export function PdfAnalyzer() {
                 <DialogHeader>
                   <DialogTitle>Detailed Analysis Process</DialogTitle>
                 </DialogHeader>
-                <div className="whitespace-pre-wrap text-sm">{result.chainOfThought}</div>
+                <div className="prose prose-sm max-w-none dark:prose-invert">
+                  <ReactMarkdown>{result.chainOfThought}</ReactMarkdown>
+                </div>
               </DialogContent>
             </Dialog>
           </CardContent>
