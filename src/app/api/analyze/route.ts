@@ -33,11 +33,13 @@ export async function POST(request: Request) {
 
 [PDF Content will be analyzed automatically]
 
-Do an expert-level peer review on this. Make sure to be harsh but fair. After your review give a probability that the paper will be retracted. Put the probability as a percentage in double brackets.`;
+Do an expert-level peer review on this. Make sure to be harsh but fair. After your review give a probability that the paper will be retracted. Put the probability as a percentage in double brackets exactly like this: [[X%]]`;
+
+    console.log("Making API request to Claude...");
 
     // Make the API request to Claude
     const message = await anthropic.messages.create({
-      model: "claude-3-7-sonnet-20250219", // Corrected model ID with 2025 year
+      model: "claude-3-7-sonnet-20250219",
       max_tokens: 6000,
       thinking: { type: "enabled", budget_tokens: 2000 },
       system:
@@ -63,38 +65,118 @@ Do an expert-level peer review on this. Make sure to be harsh but fair. After yo
       ],
     });
 
-    // Get the response text
-    const responseText =
-      typeof message.content[0] === "object" && "text" in message.content[0]
-        ? (message.content[0].text as string)
-        : "";
+    console.log("Received response from Claude");
 
-    // Extract percentage using regex, matching the Python script's approach
+    // Log the raw message structure to better understand what we're getting
+    console.log("Claude response structure:", JSON.stringify(message, null, 2).substring(0, 300));
+
+    // Log information about the response content
+    console.log(`Content blocks: ${message.content.length}`);
+    message.content.forEach((block, i) => {
+      console.log(`Block ${i} type: ${JSON.stringify(block)}`);
+    });
+
+    // Find the text block in the content array
+    const textBlock = message.content.find(
+      block => typeof block === "object" && "type" in block && block.type === "text",
+    );
+
+    // Get the response text from the text block
+    const responseText = textBlock && "text" in textBlock ? (textBlock.text as string) : "";
+
+    // Make sure we have a response
+    if (!responseText) {
+      console.log("No text content found in the response");
+      return NextResponse.json({ error: "No text content in Claude's response" }, { status: 500 });
+    }
+
+    // Log the first and last parts of the response text (to avoid overwhelming logs)
+    console.log(`Response text length: ${responseText.length}`);
+    console.log(`Response text prefix (200 chars): ${responseText.substring(0, 200)}...`);
+    console.log(
+      `Response text suffix (200 chars): ...${responseText.substring(responseText.length - 200)}`,
+    );
+
+    // Find percentage - first try with double brackets
     const extractPercentage = (text: string): number => {
+      // First try the specified format
       const match = text.match(/\[\[(\d+(?:\.\d+)?)%?\]\]/);
       if (match) {
+        console.log(`Found percentage match: ${match[0]} at position ${text.indexOf(match[0])}`);
         try {
           return parseFloat(match[1]);
         } catch {
+          console.log(`Failed to parse percentage from match: ${match[1]}`);
           return 0;
         }
       }
+
+      // Try other formats that might contain percentage in conclusion
+      const percentagePatterns = [
+        /probability of retraction is (\d+(?:\.\d+)?)%/i,
+        /retraction probability of (\d+(?:\.\d+)?)%/i,
+        /likelihood of retraction: (\d+(?:\.\d+)?)%/i,
+        /retraction likelihood: (\d+(?:\.\d+)?)%/i,
+        /(\d+(?:\.\d+)?)% likelihood/i,
+        /(\d+(?:\.\d+)?)% probability/i,
+        /(\d+(?:\.\d+)?)% chance/i,
+      ];
+
+      for (const pattern of percentagePatterns) {
+        const altMatch = text.match(pattern);
+        if (altMatch) {
+          console.log(`Found alternative percentage pattern: ${altMatch[0]}`);
+          try {
+            return parseFloat(altMatch[1]);
+          } catch {
+            console.log(`Failed to parse from alternative pattern: ${altMatch[1]}`);
+          }
+        }
+      }
+
+      console.log("No percentage pattern found in response text");
       return 0;
     };
 
     const retractedPercentage = extractPercentage(responseText);
+    console.log(`Extracted percentage: ${retractedPercentage}%`);
 
-    // For the analysis, get everything before the double bracketed percentage
-    const lastIndex = responseText.lastIndexOf("[[");
-    const analysis =
-      lastIndex > 0
-        ? responseText.substring(responseText.lastIndexOf("\n\n", lastIndex) + 2, lastIndex).trim()
-        : "Analysis not found";
+    // Extract analysis - try several strategies to get a meaningful summary
+    let analysis = "Analysis not found";
+
+    // 1. Try to find a conclusion section
+    const conclusionMatch = responseText.match(/(?:conclusion|summary):(.*?)(?:\n\n|\n$|$)/i);
+    if (conclusionMatch && conclusionMatch[1].trim().length > 10) {
+      analysis = conclusionMatch[1].trim();
+      console.log(`Found conclusion section: ${analysis.substring(0, 100)}...`);
+    }
+    // 2. Try to find the last substantial paragraph before any mention of percentage
+    else {
+      const paragraphs = responseText
+        .split(/\n\n+/)
+        .map(p => p.trim())
+        .filter(p => p.length > 0);
+      console.log(`Found ${paragraphs.length} paragraphs in the text`);
+
+      if (paragraphs.length > 0) {
+        // Use the last substantial paragraph (at least 100 chars)
+        const substantialParagraphs = paragraphs.filter(p => p.length > 100);
+        if (substantialParagraphs.length > 0) {
+          analysis = substantialParagraphs[substantialParagraphs.length - 1];
+          console.log(`Using last substantial paragraph: ${analysis.substring(0, 100)}...`);
+        } else {
+          // Fallback to the last paragraph
+          analysis = paragraphs[paragraphs.length - 1];
+          console.log(`Using last paragraph as fallback: ${analysis.substring(0, 100)}...`);
+        }
+      }
+    }
 
     // Chain of thought is the entire response
     const chainOfThought = responseText;
 
     // Return the parsed analysis
+    console.log("Returning analysis results");
     return NextResponse.json({
       retractedPercentage,
       analysis,
